@@ -1,5 +1,7 @@
 import requests
 from .excel_utils import save_to_excel
+import requests_cache
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 class SpotifyClient:
     def __init__(self, access_token):
@@ -9,11 +11,34 @@ class SpotifyClient:
             "Authorization": f"Bearer {self.access_token}",
             "Content-Type": "application/json",
         }
+        requests_cache.install_cache("spotify_cache", expire_after=3600)  # Cache expires after 1 hour
 
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     def _get(self, endpoint, params=None):
         """Helper method for GET requests."""
         url = f"{self.base_url}/{endpoint}"
         response = requests.get(url, headers=self.headers, params=params)
+        response.raise_for_status()
+        return response.json()
+
+    def _post(self, endpoint, data=None):
+        """Helper method for POST requests."""
+        url = f"{self.base_url}/{endpoint}"
+        response = requests.post(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+
+    def _put(self, endpoint, data=None):
+        """Helper method for PUT requests."""
+        url = f"{self.base_url}/{endpoint}"
+        response = requests.put(url, headers=self.headers, json=data)
+        response.raise_for_status()
+        return response.json()
+
+    def _delete(self, endpoint, data=None):
+        """Helper method for DELETE requests."""
+        url = f"{self.base_url}/{endpoint}"
+        response = requests.delete(url, headers=self.headers, json=data)
         response.raise_for_status()
         return response.json()
 
@@ -127,7 +152,7 @@ class SpotifyClient:
         # Add tracks to the playlist
         self._post(f"playlists/{playlist['id']}/tracks", data={"uris": [f"spotify:track:{track_id}" for track_id in tracks]})
         return playlist
-    
+
     def get_recently_played_tracks(self, after=None, before=None, limit=50):
         """
         Fetch recently played tracks within a specific time range.
@@ -148,7 +173,7 @@ class SpotifyClient:
 
         response = self._get("me/player/recently-played", params=params)
         return response.get("items", [])
-    
+
     def get_top_tracks(self, time_range="medium_term", limit=20):
         """
         Fetch the user's top tracks for a specific time range.
@@ -184,7 +209,7 @@ class SpotifyClient:
         }
         response = self._get("me/top/artists", params=params)
         return response.get("items", [])
-    
+
     def get_playlist_snapshot(self, playlist_id):
         """
         Fetch a snapshot of a playlist's current state.
@@ -220,7 +245,7 @@ class SpotifyClient:
             "added_tracks": list(new_tracks - old_tracks),
             "removed_tracks": list(old_tracks - new_tracks),
         }
-    
+
     def start_playback(self, device_id=None, context_uri=None, uris=None):
         """
         Start or resume playback on a device.
@@ -265,7 +290,7 @@ class SpotifyClient:
         """Check if tracks are saved in the user's library."""
         response = self._get("me/tracks/contains", params={"ids": ",".join(track_ids)})
         return response
-    
+
     def get_new_releases(self, limit=20):
         """Fetch new album releases."""
         response = self._get("browse/new-releases", params={"limit": limit})
@@ -286,7 +311,7 @@ class SpotifyClient:
         }
         response = self._get("recommendations", params=params)
         return response.get("tracks", [])
-    
+
     def reorder_playlist_tracks(self, playlist_id, range_start, insert_before, range_length=1):
         """Reorder tracks in a playlist."""
         data = {

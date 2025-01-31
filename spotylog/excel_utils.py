@@ -37,23 +37,3 @@ def save_to_json(data, filename="spotify_data.json"):
     with open(filename, mode="w", encoding="utf-8") as file:
         json.dump(data, file, indent=4)
     print(f"Data saved to {filename}")
-
-def save_recently_played_tracks_to_excel(tracks, filename="recently_played.xlsx"):
-    """
-    Save recently played tracks to an Excel file.
-    
-    Args:
-        tracks (list): A list of recently played tracks.
-        filename (str): The name of the Excel file.
-    """
-    data = []
-    for track in tracks:
-        played_at = track.get("played_at", "")
-        track_data = track.get("track", {})
-        data.append({
-            "Played At": played_at,
-            "Name": track_data.get("name"),
-            "Artists": ", ".join(artist["name"] for artist in track_data.get("artists", [])),
-            "Album": track_data.get("album", {}).get("name"),
-        })
-    save_to_excel(data, filename)
